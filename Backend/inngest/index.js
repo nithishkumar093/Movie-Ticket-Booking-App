@@ -8,15 +8,18 @@ const syncUserCreation = inngest.createFunction(
     { id: 'sync-user-from-clerk' },
     { event: 'clerk/user.created' },
     async ({ event, step }) => {
-        const { id, first_name, last_name, email_addresses, image_url } = event.data
+        const { id, first_name, last_name, email_addresses, image_url, profile_image_url } = event.data
         const userData = {
             _id: id,
             email: email_addresses?.[0]?.email_address || "",
             name: `${first_name || ""} ${last_name || ""}`.trim(),
-            image: image_url
+            image: image_url || profile_image_url || ""
         }
+        console.log("Inngest: syncUserCreation triggered for ID:", id);
+
         await step.run('save-user-to-db', async () => {
-            await User.findByIdAndUpdate(id, userData, { upsert: true })
+            const result = await User.findByIdAndUpdate(id, { $set: userData }, { upsert: true, new: true })
+            console.log("Inngest: User saved/updated in DB:", result?._id);
         })
     }
 )
@@ -27,8 +30,11 @@ const syncUserDeletion = inngest.createFunction(
     { event: 'clerk/user.deleted' },
     async ({ event, step }) => {
         const { id } = event.data
+        console.log("Inngest: syncUserDeletion triggered for ID:", id);
+
         await step.run('delete-user-from-db', async () => {
             await User.findByIdAndDelete(id)
+            console.log("Inngest: User deleted from DB:", id);
         })
     }
 )
@@ -37,14 +43,17 @@ const syncUserUpdation = inngest.createFunction(
     { id: 'update-user-from-clerk' },
     { event: 'clerk/user.updated' },
     async ({ event, step }) => {
-        const { id, first_name, last_name, email_addresses, image_url } = event.data
+        const { id, first_name, last_name, email_addresses, image_url, profile_image_url } = event.data
         const userData = {
             email: email_addresses?.[0]?.email_address || "",
             name: `${first_name || ""} ${last_name || ""}`.trim(),
-            image: image_url
+            image: image_url || profile_image_url || ""
         }
+        console.log("Inngest: syncUserUpdation triggered for ID:", id);
+
         await step.run('update-user-in-db', async () => {
-            await User.findByIdAndUpdate(id, userData)
+            const result = await User.findByIdAndUpdate(id, { $set: userData }, { new: true })
+            console.log("Inngest: User updated in DB:", result?._id);
         })
     }
 )
